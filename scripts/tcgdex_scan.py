@@ -20,12 +20,17 @@ def get(url):
         return json.loads(r.read().decode())
 
 
+CORPUS = pathlib.Path("tcgdex-scan/corpus")
+
+
 def card_products(card_id):
     """Every distinct Cardmarket product id this card claims."""
     try:
         d = get(f"{BASE}/cards/{card_id}")
     except Exception as e:                                   # noqa: BLE001
         return card_id, None, None, f"error: {e}"
+    CORPUS.mkdir(parents=True, exist_ok=True)
+    (CORPUS / f"{card_id}.json").write_text(json.dumps(d))
     ids = set()
     top = ((d.get("pricing") or {}).get("cardmarket") or {})
     if top.get("idProduct"):
