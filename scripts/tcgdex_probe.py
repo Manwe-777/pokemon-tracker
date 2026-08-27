@@ -39,7 +39,12 @@ def fetch(card_id):
 def products(payload):
     """Every (printing key, Cardmarket product id, main price) in the payload."""
     rows = []
-    for v in payload.get("variants") or []:
+    top = ((payload.get("pricing") or {}).get("cardmarket") or {})
+    if top:
+        rows.append({"type": "<card-level pricing>", "stamp": "-",
+                     "idProduct": top.get("idProduct"), "avg": top.get("avg"),
+                     "trend": top.get("trend"), "avg30": top.get("avg30")})
+    for v in payload.get("variants_detailed") or []:
         cm = ((v.get("pricing") or {}).get("cardmarket") or {})
         stamps = "+".join(v.get("stamp") or []) or "-"
         rows.append({
