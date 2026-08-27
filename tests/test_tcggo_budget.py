@@ -257,3 +257,62 @@ def test_different_params_are_different_cache_entries(repo, tmp_path, monkeypatc
     p2 = source._get("/x", {"page": 2})
     assert p1 != p2
     assert source._get("/x", {"page": 1}) == p1     # served from cache
+
+
+# ------------------------------------------------------ the rolling window
+
+def test_the_window_rolls_rather_than_resetting_at_midnight(repo):
+    """A calendar day lets twice the cap through across a midnight.
+
+    80 at 23:00 and 80 at 01:00 is 160 requests in two hours. The plan's own
+    reset is not visible to us, so the window has to be the conservative one.
+    """
+    b = RequestBudget(repo, "tcggo", limit=3)
+    b.reserve(3)
+    assert b.remaining() == 0
+
+    # Requests from 23 hours ago are still inside the window.
+    with repo.tx() as c:
+        c.execute("""UPDATE api_requests
+                        SET sent_at = datetime('now', '-23 hours')
+                      WHERE provider='tcggo'""")
+    assert RequestBudget(repo, "tcggo", limit=3).remaining() == 0, \
+        "23 hours ago is not yesterday"
+
+    with pytest.raises(BudgetExhausted):
+        RequestBudget(repo, "tcggo", limit=3).reserve()
+
+
+def test_requests_age_out_of_the_window(repo):
+    """Past 24 hours they stop counting, or the cap would be permanent."""
+    b = RequestBudget(repo, "tcggo", limit=3)
+    b.reserve(3)
+
+    with repo.tx() as c:
+        c.execute("""UPDATE api_requests
+                        SET sent_at = datetime('now', '-25 hours')
+                      WHERE provider='tcggo'""")
+
+    fresh = RequestBudget(repo, "tcggo", limit=3)
+    assert fresh.used() == 0
+    assert fresh.reserve() == 1
+
+
+def test_the_worst_case_across_a_midnight_stays_under_the_cap(repo):
+    """The number Tom actually cares about: never more than the limit in 24h."""
+    limit = 80
+    b = RequestBudget(repo, "tcggo", limit=limit)
+    for _ in range(limit):
+        b.reserve()
+
+    # Midnight passes. Under a per-day counter this would free the whole
+    # allowance again; under a rolling window it frees nothing.
+    with repo.tx() as c:
+        c.execute("""UPDATE api_requests
+                        SET sent_at = datetime('now', '-2 hours')
+                      WHERE provider='tcggo'""")
+
+    after_midnight = RequestBudget(repo, "tcggo", limit=limit)
+    assert after_midnight.remaining() == 0
+    with pytest.raises(BudgetExhausted):
+        after_midnight.reserve()

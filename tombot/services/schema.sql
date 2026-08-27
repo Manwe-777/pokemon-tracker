@@ -239,6 +239,21 @@ CREATE TABLE IF NOT EXISTS set_episodes (
     updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- One row per request actually sent, so the allowance can be counted over a
+-- rolling window rather than a calendar day.
+--
+-- A per-day counter looks obedient and still overspends: 80 at 23:00 and 80 at
+-- 01:00 is 160 requests inside two hours. If the plan counts any 24 hours —
+-- and we cannot see how it counts — that is a bill.
+CREATE TABLE IF NOT EXISTS api_requests (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider TEXT NOT NULL,
+    sent_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_api_requests_window
+    ON api_requests(provider, sent_at);
+
 CREATE TABLE IF NOT EXISTS api_budget (
     provider TEXT NOT NULL,
     day      TEXT NOT NULL,              -- YYYY-MM-DD, UTC

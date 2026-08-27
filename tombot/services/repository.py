@@ -1236,6 +1236,41 @@ class PokemonRepo:
                 (official_set_id, episode_id, name, code))
 
     # ---------------------------------------------------------------- budget
+    WINDOW_HOURS = 24
+
+    def budget_used_in_window(self, provider: str) -> int:
+        row = self._one(
+            f"""SELECT COUNT(*) AS n FROM api_requests
+                 WHERE provider=? AND sent_at > datetime('now', '-{self.WINDOW_HOURS} hours')""",
+            (provider,))
+        return int(row["n"]) if row else 0
+
+    def budget_reserve_window(self, provider: str, n: int, limit: int) -> int | None:
+        """Claim n requests against a rolling window, or return None.
+
+        The prune runs first on purpose: it is a write, so the transaction takes
+        SQLite's write lock before anything is counted. Counting first would let
+        two threads both read the last free slot and both take it — which is how
+        the per-day version was losing the race.
+        """
+        if n > limit:
+            return None
+        with self.tx() as c:
+            c.execute(
+                f"""DELETE FROM api_requests
+                     WHERE provider=? AND sent_at <= datetime('now', '-{self.WINDOW_HOURS} hours')""",
+                (provider,))
+            used = c.execute(
+                f"""SELECT COUNT(*) FROM api_requests
+                     WHERE provider=? AND sent_at > datetime('now', '-{self.WINDOW_HOURS} hours')""",
+                (provider,)).fetchone()[0]
+            if used + n > limit:
+                return None
+            c.executemany(
+                "INSERT INTO api_requests(provider, sent_at) VALUES(?, datetime('now'))",
+                [(provider,)] * n)
+            return used + n
+
     def budget_used(self, provider: str, day: str) -> int:
         row = self._one("SELECT count FROM api_budget WHERE provider=? AND day=?",
                         (provider, day))

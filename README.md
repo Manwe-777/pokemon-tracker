@@ -349,7 +349,10 @@ Some details worth knowing before you change it:
 * A request is counted *before* it is sent. If something dies mid-request the
   slot is still spent — wasting a request is better than being billed for one.
 * Setting `TCGGO_DAILY_LIMIT=0` blocks the source entirely.
-* The allowance resets at 00:00 UTC.
+* The allowance is a **rolling 24 hours**, not a calendar day. A day counter
+  would allow the full cap twice across a midnight — 80 at 23:00 and 80 at
+  01:00 is 160 requests in two hours — and we cannot see how the plan itself
+  counts, so this takes the cautious reading.
 
 To check what is left, or to test the key without touching the app:
 
