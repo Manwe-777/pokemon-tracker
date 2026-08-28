@@ -483,3 +483,12 @@ h2 { font-size: 16px; letter-spacing: -.01em; margin: 32px 0 12px; color: var(--
                    font-size: 1rem; line-height: 1; padding: 0 2px; opacity: .6; }
 .set-chip .unpin:hover { opacity: 1; }
 .pin-picker { font-size: .78rem; padding: 2px 6px; border-radius: 6px; }
+
+/* ---- cards a rule left out --------------------------------------------- */
+/* Shown, not hidden. A rule that removes eighteen cards should say so; the
+   alternative is a card that looks like it does not exist. */
+.card-tile.excluded { opacity: .55; }
+.card-tile.excluded::after { content: 'fuera de la regla'; position: absolute;
+    left: 6px; bottom: 6px; font-size: .62rem; letter-spacing: .04em;
+    padding: 1px 6px; border-radius: 999px; text-transform: uppercase;
+    background: rgba(0, 0, 0, .65); color: var(--warn, #d97706); }

@@ -32,6 +32,9 @@ def get_set(set_id):
     progress = _with_progress(repo().set_progress(set_id))
     cset["progress"] = progress[0] if progress else None
     cset["slots"] = repo().get_set_slots(set_id)
+    # What the rule left out, so that nothing in the set is invisible. A card
+    # excluded by a rule used to look exactly like a card that did not exist.
+    cset["excluded"] = repo().cards_excluded_from_set(set_id)
     return jsonify(cset)
 
 

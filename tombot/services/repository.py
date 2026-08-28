@@ -537,6 +537,35 @@ class PokemonRepo:
         with self.tx() as c:
             c.execute("DELETE FROM collection_sets WHERE id=?", (set_id,))
 
+    def cards_excluded_from_set(self, set_id: str) -> list[dict]:
+        """Cards in this set's source sets that its rule leaves out.
+
+        Nothing showed these. A rule removing eighteen cards left them
+        invisible on every screen, so the only way to find out a card existed
+        was to notice it was not there — which is how "the card is missing" gets
+        reported for a card that is not missing.
+        """
+        import json as _json
+
+        cset = self.get_collection_set(set_id)
+        if not cset:
+            return []
+        rules = _json.loads(cset.get("rules_json") or "{}")
+        sources = rules.get("include_sets") or []
+        if not sources:
+            return []
+
+        marks = ",".join("?" * len(sources))
+        return self._all(
+            f"""SELECT c.*, os.name AS set_name
+                  FROM cards c
+                  JOIN official_sets os ON os.id = c.official_set_id
+                 WHERE c.official_set_id IN ({marks})
+                   AND NOT EXISTS (SELECT 1 FROM set_slot_cards m
+                                    WHERE m.set_id = ? AND m.card_id = c.id)
+                 ORDER BY c.number_sort, c.number""",
+            (*sources, set_id))
+
     def add_manual_slot(self, set_id: str, card_id: str,
                         label: str | None = None) -> dict | None:
         """Pin one card into a set by hand.
